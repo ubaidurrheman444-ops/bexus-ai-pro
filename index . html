@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bexus AI Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root{
+    --bg-app:#0a0e17;
+    --bg-sidebar:#070a12;
+    --bg-panel:#111827;
+    --bg-panel-hover:#161f33;
+    --bg-input:#0f1522;
+    --bg-user-bubble:#141b2e;
+    --accent:#00f0ff;
+    --accent-dim:#00b8c9;
+    --accent-soft:rgba(0,240,255,0.1);
+    --text:#e8f4ff;
+    --text-dim:#8fa3c0;
+    --text-faint:#5b6b85;
+    --border:#1c2740;
+    --border-soft:#131c2e;
+    --danger:#ff3366;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg-app);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:6px; height:6px;}
+  ::-webkit-scrollbar-thumb{background:#4d4d4f; border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .app{ display:flex; height:100vh; width:100vw; }
+
+  /* Sidebar */
+  .sidebar{
+    width:260px; min-width:260px; background:var(--bg-sidebar);
+    display:flex; flex-direction:column; padding:8px;
+    transition:margin-left 0.2s ease;
+  }
+  .sidebar.collapsed{ margin-left:-260px; }
+
+  .sidebar-top{ display:flex; align-items:center; justify-content:space-between; padding:6px 6px 10px; }
+  .brand{ display:flex; align-items:center; gap:8px; }
+  .brand-mark{
+    width:28px; height:28px; border-radius:8px; background:var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; color:#04141a; flex-shrink:0; box-shadow:0 0 14px var(--accent);
+  }
+  .brand-name{ font-size:16px; font-weight:600; color:var(--text); }
+  .icon-btn{
+    width:32px; height:32px; border-radius:8px; border:none; background:none;
+    color:var(--text-dim); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:background 0.12s;
+  }
+  .icon-btn:hover{ background:var(--bg-panel-hover); color:var(--text); }
+
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px;
+    cursor:pointer; font-size:13.5px; color:var(--text); margin-bottom:2px;
+  }
+  .nav-item:hover{ background:var(--bg-panel-hover); }
+  .nav-item svg{ flex-shrink:0; color:var(--text-dim); }
+
+  .thread-label{
+    font-size:11.5px; font-weight:600; color:var(--text-faint); margin:14px 10px 6px 10px;
+  }
+  .thread-list{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:1px; margin-top:2px; }
+  .thread-item{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    font-size:13.5px; color:var(--text-dim);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .thread-item:hover{ background:var(--bg-panel-hover); color:var(--text); }
+  .thread-item.active{ background:var(--bg-panel-hover); color:var(--text); }
+
+  .sidebar-footer{
+    border-top:1px solid var(--border-soft); padding-top:8px; margin-top:6px;
+    display:flex; align-items:center; gap:10px; padding:10px 8px 4px;
+    border-radius:8px; cursor:pointer;
+  }
+  .sidebar-footer:hover{ background:var(--bg-panel-hover); }
+  .avatar-mini{
+    width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#00f0ff,#7b2ff7);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:12px; font-weight:600; flex-shrink:0;
+  }
+  .plan-tag{ font-size:13px; color:var(--text); line-height:1.3; }
+  .plan-sub{ font-size:11.5px; color:var(--text-faint); }
+
+  /* Main */
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; position:relative; background:var(--bg-app); }
+
+  .topbar{
+    height:52px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding:0 12px;
+  }
+  .topbar-left{ display:flex; align-items:center; gap:8px; }
+  .model-pill{
+    display:flex; align-items:center; gap:6px; padding:7px 10px;
+    border-radius:8px; font-size:14px; font-weight:600; color:var(--text);
+    cursor:pointer;
+  }
+  .model-pill:hover{ background:var(--bg-panel-hover); }
+  .model-pill .chev{ color:var(--text-faint); }
+
+  .thread-scroll{ flex:1; overflow-y:auto; }
+  .thread-inner{ max-width:768px; margin:0 auto; padding:8px 20px 12px; }
+
+  .empty-state{
+    height:calc(100vh - 230px); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:0 20px;
+  }
+  .empty-mark{
+    width:48px; height:48px; border-radius:12px; background:var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:700; color:#04141a; margin-bottom:20px; box-shadow:0 0 22px var(--accent);
+  }
+  .empty-state h1{ font-weight:600; font-size:26px; margin:0 0 26px; color:var(--text); }
+  .suggestion-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; max-width:580px; }
+  .suggestion{
+    text-align:left; padding:12px 14px; border:1px solid var(--border);
+    border-radius:12px; cursor:pointer; background:transparent;
+    transition:background 0.12s;
+  }
+  .suggestion:hover{ background:var(--bg-panel-hover); }
+  .suggestion .s-title{ font-size:13.5px; color:var(--text); margin-bottom:2px; font-weight:500; }
+  .suggestion .s-sub{ font-size:12.5px; color:var(--text-faint); }
+
+  .msg-row{ display:flex; gap:14px; margin-bottom:4px; align-items:flex-start; padding:14px 0; }
+  .msg-row.user{ justify-content:flex-end; }
+  .msg-avatar{
+    width:30px; height:30px; border-radius:8px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; margin-top:2px;
+  }
+  .msg-row.assistant .msg-avatar{ background:var(--accent); color:#04141a; box-shadow:0 0 10px var(--accent); }
+  .msg-row.user .msg-avatar{ display:none; }
+
+  .msg-content{ min-width:0; max-width:100%; }
+  .msg-row.assistant .msg-content{ flex:1; padding-top:4px; }
+  .msg-row.user .msg-content{ max-width:70%; }
+
+  .msg-bubble{ font-size:15px; line-height:1.7; word-wrap:break-word; }
+  .msg-row.user .msg-bubble{
+    background:var(--bg-user-bubble); color:var(--text);
+    padding:10px 16px; border-radius:18px;
+  }
+  .msg-row.assistant .msg-bubble{ color:var(--text); }
+
+  .msg-bubble p{ margin:0 0 12px; }
+  .msg-bubble p:last-child{ margin-bottom:0; }
+  .msg-bubble ul, .msg-bubble ol{ margin:6px 0 12px; padding-left:22px; }
+  .msg-bubble li{ margin-bottom:5px; }
+  .msg-bubble code{
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:13px;
+    background:rgba(255,255,255,0.08); padding:2px 5px; border-radius:4px;
+  }
+  .code-block{ margin:10px 0 14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .code-header{
+    display:flex; align-items:center; justify-content:space-between;
+    background:#171717; padding:7px 12px; font-size:12px; color:var(--text-faint);
+  }
+  .copy-btn{
+    display:flex; align-items:center; gap:5px; background:none; border:none;
+    color:var(--text-faint); font-size:12px; cursor:pointer; padding:2px 4px;
+  }
+  .copy-btn:hover{ color:var(--text); }
+  .code-block pre{ margin:0; background:#0d0d0d; padding:14px; overflow-x:auto; }
+  .code-block pre code{ background:none; padding:0; font-size:13px; color:#e6e6e6; font-family:ui-monospace,"SF Mono",Consolas,monospace; }
+  .msg-bubble strong{ font-weight:600; color:var(--text); }
+
+  .msg-actions{
+    display:flex; gap:2px; margin-top:8px; opacity:0; transition:opacity 0.12s;
+  }
+  .msg-row.assistant:hover .msg-actions{ opacity:1; }
+  .msg-actions button{
+    width:28px; height:28px; border-radius:6px; border:none; background:none;
+    color:var(--text-faint); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .msg-actions button:hover{ background:var(--bg-panel-hover); color:var(--text); }
+  .msg-actions button.copied{ color:var(--accent); }
+
+  .typing-row{ display:flex; gap:14px; padding:14px 0; }
+  .typing-dots{ display:flex; gap:4px; padding-top:10px; }
+  .typing-dots span{
+    width:6px; height:6px; border-radius:50%; background:var(--text-faint);
+    animation:blink 1.2s infinite ease-in-out;
+  }
+  .typing-dots span:nth-child(2){ animation-delay:0.2s; }
+  .typing-dots span:nth-child(3){ animation-delay:0.4s; }
+  @keyframes blink{ 0%,80%,100%{ opacity:0.25; } 40%{ opacity:1; } }
+
+  .error-row{ display:flex; justify-content:center; margin:12px 0; }
+  .error-chip{
+    font-size:13px; color:var(--danger); background:rgba(239,68,68,0.1);
+    border:1px solid rgba(239,68,68,0.3); padding:8px 14px; border-radius:8px;
+  }
+
+  .composer-wrap{ padding:0 20px 22px; flex-shrink:0; }
+  .composer{
+    max-width:768px; margin:0 auto; background:var(--bg-input);
+    border:1px solid var(--border); border-radius:26px;
+    display:flex; align-items:flex-end; padding:10px 10px 10px 20px; gap:10px;
+    transition:border-color 0.15s;
+  }
+  .composer:focus-within{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft), 0 0 16px rgba(0,240,255,0.15); }
+  .composer textarea{
+    flex:1; background:none; border:none; outline:none; resize:none;
+    color:var(--text); font-size:15px;
+    line-height:1.5; max-height:180px; padding:8px 0; font-family:inherit;
+  }
+  .composer textarea::placeholder{ color:var(--text-faint); }
+  .send-btn{
+    width:34px; height:34px; border-radius:50%; border:none; flex-shrink:0;
+    background:var(--accent); color:#04141a; box-shadow:0 0 14px var(--accent); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:opacity 0.15s; margin-bottom:2px;
+  }
+  .send-btn:disabled{ opacity:0.25; cursor:default; background:var(--text-dim); box-shadow:none; }
+  .composer-hint{ text-align:center; font-size:12px; color:var(--text-faint); margin-top:10px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="brand">
+        <div class="brand-mark">B</div>
+        <div class="brand-name">Bexus AI Pro</div>
+      </div>
+      <button class="icon-btn" id="collapseBtn" aria-label="Collapse sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/></svg>
+      </button>
+    </div>
+
+    <div class="nav-item" id="newChatBtn">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      New chat
+    </div>
+    <div class="nav-item">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search chats
+    </div>
+
+    <div class="thread-label">Chats</div>
+    <div class="thread-list" id="threadList"></div>
+
+    <div class="sidebar-footer">
+      <div class="avatar-mini">N</div>
+      <div>
+        <div class="plan-tag">Naveed</div>
+        <div class="plan-sub">Free plan</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" id="expandBtn" style="display:none;" aria-label="Expand sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="10" y1="4" x2="10" y2="20"/></svg>
+        </button>
+        <div class="model-pill">Bexus AI Pro <span class="chev">▾</span></div>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="thread-scroll" id="threadScroll">
+      <div class="thread-inner" id="threadInner">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-mark">B</div>
+          <h1>What can I help with?</h1>
+          <div class="suggestion-grid">
+            <div class="suggestion" data-prompt="Explain the difference between liquidity sweeps and stop hunts in trading, in plain English.">
+              <div class="s-title">Explain a concept</div>
+              <div class="s-sub">Break down something technical, simply</div>
+            </div>
+            <div class="suggestion" data-prompt="Draft a short, professional follow-up email to a supplier about a delayed pipe shipment.">
+              <div class="s-title">Draft a message</div>
+              <div class="s-sub">Write something you can send today</div>
+            </div>
+            <div class="suggestion" data-prompt="Give me a 5-step framework for evaluating a new business idea.">
+              <div class="s-title">Think through a plan</div>
+              <div class="s-sub">Structure an idea into clear steps</div>
+            </div>
+            <div class="suggestion" data-prompt="What are three ways to make a product description more persuasive without sounding salesy?">
+              <div class="s-title">Improve your writing</div>
+              <div class="s-sub">Sharpen tone, clarity, or persuasion</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" placeholder="Message Bexus AI Pro..." rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+      <div class="composer-hint">Bexus AI Pro can make mistakes. Consider checking important information.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let threads = [];
+let activeId = null;
+let isStreaming = false;
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function newThread(){
+  const t = { id: uid(), title: 'New chat', messages: [] };
+  threads.unshift(t);
+  activeId = t.id;
+  renderThreadList();
+  renderConversation();
+}
+
+function getActive(){ return threads.find(t => t.id === activeId); }
+
+function renderThreadList(){
+  const list = document.getElementById('threadList');
+  list.innerHTML = '';
+  threads.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'thread-item' + (t.id === activeId ? ' active' : '');
+    el.textContent = t.title;
+    el.onclick = () => { activeId = t.id; renderThreadList(); renderConversation(); };
+    list.appendChild(el);
+  });
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatMarkdown(text){
+  let t = escapeHtml(text);
+  t = t.replace(/```([a-zA-Z]*)\n([\s\S]*?)```/g, function(m, lang, code){
+    const language = lang || 'text';
+    return '<div class="code-block"><div class="code-header"><span>' + language + '</span><button class="copy-btn" onclick="copyCode(this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button></div><pre><code>' + code.trim() + '</code></pre></div>';
+  });
+  t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const lines = t.split('\n');
+  let html = ''; let inList = false;
+  lines.forEach(line => {
+    const m = line.match(/^\s*[-*]\s+(.*)/);
+    if(m){
+      if(!inList){ html += '<ul>'; inList = true; }
+      html += '<li>' + m[1] + '</li>';
+    } else {
+      if(inList){ html += '</ul>'; inList = false; }
+      if(line.trim() === ''){ } else if(line.startsWith('<div class="code-block">')){ html += line; } else { html += '<p>' + line + '</p>'; }
+    }
+  });
+  if(inList) html += '</ul>';
+  return html || '<p></p>';
+}
+
+function copyCode(btn){
+  const pre = btn.closest('.code-block').querySelector('pre code');
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    const original = btn.innerHTML;
+    btn.innerHTML = 'Copied';
+    setTimeout(() => { btn.innerHTML = original; }, 1500);
+  });
+}
+
+function copyMessage(btn, text){
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1200);
+  });
+}
+
+function renderConversation(){
+  const inner = document.getElementById('threadInner');
+  const t = getActive();
+  if(!t || t.messages.length === 0){
+    inner.innerHTML = '';
+    inner.appendChild(document.getElementById('emptyState') || makeEmptyState());
+    attachSuggestionHandlers();
+    return;
+  }
+  inner.innerHTML = '';
+  t.messages.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + m.role;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = 'B';
+
+    const content = document.createElement('div');
+    content.className = 'msg-content';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = m.role === 'assistant' ? formatMarkdown(m.content) : '<p>' + escapeHtml(m.content) + '</p>';
+    content.appendChild(bubble);
+
+    if(m.role === 'assistant'){
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      const copyBtn = document.createElement('button');
+      copyBtn.setAttribute('aria-label','Copy response');
+      copyBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+      copyBtn.onclick = () => copyMessage(copyBtn, m.content);
+      const upBtn = document.createElement('button');
+      upBtn.setAttribute('aria-label','Good response');
+      upBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/></svg>';
+      const downBtn = document.createElement('button');
+      downBtn.setAttribute('aria-label','Bad response');
+      downBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/></svg>';
+      actions.appendChild(copyBtn);
+      actions.appendChild(upBtn);
+      actions.appendChild(downBtn);
+      content.appendChild(actions);
+    }
+
+    if(m.role === 'assistant') row.appendChild(avatar);
+    row.appendChild(content);
+    inner.appendChild(row);
+  });
+  if(isStreaming){
+    const row = document.createElement('div');
+    row.className = 'typing-row';
+    row.innerHTML = '<div class="msg-avatar">B</div><div class="typing-dots"><span></span><span></span><span></span></div>';
+    inner.appendChild(row);
+  }
+  scrollToBottom();
+}
+
+function makeEmptyState(){
+  const div = document.createElement('div');
+  div.id = 'emptyState';
+  div.className = 'empty-state';
+  return div;
+}
+
+function attachSuggestionHandlers(){
+  document.querySelectorAll('.suggestion').forEach(el => {
+    el.onclick = () => {
+      document.getElementById('input').value = el.getAttribute('data-prompt');
+      handleSend();
+    };
+  });
+}
+
+function scrollToBottom(){
+  const scroll = document.getElementById('threadScroll');
+  requestAnimationFrame(() => { scroll.scrollTop = scroll.scrollHeight; });
+}
+
+function showError(msg){
+  const inner = document.getElementById('threadInner');
+  const row = document.createElement('div');
+  row.className = 'error-row';
+  row.innerHTML = '<div class="error-chip">' + escapeHtml(msg) + '</div>';
+  inner.appendChild(row);
+  scrollToBottom();
+}
+
+async function handleSend(){
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if(!text || isStreaming) return;
+
+  if(!activeId) newThread();
+  const t = getActive();
+
+  if(t.messages.length === 0){
+    t.title = text.length > 30 ? text.slice(0,30) + '...' : text;
+  }
+
+  t.messages.push({ role:'user', content:text });
+  input.value = '';
+  input.style.height = 'auto';
+  updateSendState();
+  renderThreadList();
+  renderConversation();
+
+  isStreaming = true;
+  renderConversation();
+
+  try{
+    // On Vercel, this frontend and the /api/chat function live on the same
+    // domain, so a relative path works automatically — no URL to configure.
+    const BACKEND_URL = "/api/chat";
+
+    const apiMessages = t.messages.map(m => ({ role: m.role, content: m.content }));
+    const response = await fetch(BACKEND_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: apiMessages })
+    });
+
+    if(!response.ok){
+      throw new Error('Request failed with status ' + response.status);
+    }
+
+    const data = await response.json();
+    const reply = (data.reply || '').trim() || 'I could not generate a response just now.';
+
+    isStreaming = false;
+    t.messages.push({ role:'assistant', content: reply });
+    renderConversation();
+  } catch(err){
+    isStreaming = false;
+    renderConversation();
+    showError('Something went wrong reaching Bexus AI Pro. Please try again.');
+    console.error(err);
+  }
+}
+
+function updateSendState(){
+  const input = document.getElementById('input');
+  document.getElementById('sendBtn').disabled = input.value.trim().length === 0 || isStreaming;
+}
+
+const input = document.getElementById('input');
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 180) + 'px';
+  updateSendState();
+});
+input.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    handleSend();
+  }
+});
+document.getElementById('sendBtn').addEventListener('click', handleSend);
+document.getElementById('newChatBtn').addEventListener('click', newThread);
+
+document.getElementById('collapseBtn').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.add('collapsed');
+  document.getElementById('expandBtn').style.display = 'flex';
+});
+document.getElementById('expandBtn').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('collapsed');
+  document.getElementById('expandBtn').style.display = 'none';
+});
+
+attachSuggestionHandlers();
+renderThreadList();
+</script>
+
+</body>
+</html>
