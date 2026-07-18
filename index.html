@@ -224,11 +224,26 @@
   }
   .send-btn:disabled{ opacity:0.25; cursor:default; background:var(--text-dim); box-shadow:none; }
   .composer-hint{ text-align:center; font-size:12px; color:var(--text-faint); margin-top:10px; }
+
+  /* Auth gate */
+  #authGate{
+    position:fixed; inset:0; background:var(--bg-app);
+    display:flex; align-items:center; justify-content:center;
+    z-index:1000;
+  }
+  #authGate.hidden{ display:none; }
+  #authLoading{ color:var(--text-dim); font-size:14px; }
+  .app.gated{ display:none; }
 </style>
 </head>
 <body>
 
-<div class="app">
+<div id="authGate">
+  <div id="authLoading">Loading...</div>
+  <div id="clerk-sign-in"></div>
+</div>
+
+<div class="app gated" id="mainApp">
   <div class="sidebar" id="sidebar">
     <div class="sidebar-top">
       <div class="brand">
@@ -252,11 +267,11 @@
     <div class="thread-label">Chats</div>
     <div class="thread-list" id="threadList"></div>
 
-    <div class="sidebar-footer">
-      <div class="avatar-mini">N</div>
+    <div class="sidebar-footer" id="sidebarFooter" style="cursor:pointer;">
+      <div class="avatar-mini" id="userAvatar">?</div>
       <div>
-        <div class="plan-tag">Naveed</div>
-        <div class="plan-sub">Free plan</div>
+        <div class="plan-tag" id="userName">Loading...</div>
+        <div class="plan-sub">Click to sign out</div>
       </div>
     </div>
   </div>
@@ -555,6 +570,57 @@ document.getElementById('expandBtn').addEventListener('click', () => {
 
 attachSuggestionHandlers();
 renderThreadList();
+</script>
+
+<script
+  async
+  crossorigin="anonymous"
+  data-clerk-publishable-key="pk_test_cmVhbC1hYXJkdmFyay00MC5jbGVyay5hY2NvdW50cy5kZXYk"
+  src="https://real-aardvark-40.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+  type="text/javascript"
+></script>
+
+<script>
+window.addEventListener('load', async function () {
+  try {
+    await window.Clerk.load();
+
+    if (window.Clerk.user) {
+      showApp();
+    } else {
+      window.Clerk.mountSignIn(document.getElementById('clerk-sign-in'), {
+        routing: 'virtual'
+      });
+      document.getElementById('authLoading').style.display = 'none';
+
+      window.Clerk.addListener(({ user }) => {
+        if (user) showApp();
+      });
+    }
+  } catch (err) {
+    console.error('Clerk failed to load:', err);
+    document.getElementById('authLoading').textContent =
+      'Sign-in is temporarily unavailable. Please refresh the page.';
+  }
+});
+
+function showApp() {
+  const user = window.Clerk.user;
+  const name = user.firstName || user.primaryEmailAddress?.emailAddress || 'Account';
+
+  document.getElementById('userName').textContent = name;
+  document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+
+  document.getElementById('authGate').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('gated');
+
+  document.getElementById('sidebarFooter').addEventListener('click', async () => {
+    if (confirm('Sign out of Bexus AI Pro?')) {
+      await window.Clerk.signOut();
+      window.location.reload();
+    }
+  });
+}
 </script>
 
 </body>
