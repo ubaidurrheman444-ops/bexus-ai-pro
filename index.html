@@ -571,10 +571,28 @@ function showError(msg){
 let attachedImage = null;
 let webSearchOn = false;
 
+function detectImageRequest(text){
+  const patterns = [
+    /\b(generate|create|make|draw|paint)\b.{0,20}\b(image|picture|photo|illustration|artwork|drawing)\b/i,
+    /\b(image|picture|photo|tasveer|tasvir)\b.{0,15}\b(bana|banao|banado|bnado|bnao|generate|create)\b/i,
+    /\bimage\s+of\b/i,
+    /\bpicture\s+of\b/i,
+    /^\s*(draw|paint)\s+(a|an|me)?\s*/i
+  ];
+  return patterns.some(p => p.test(text));
+}
+
 async function handleSend(){
   const input = document.getElementById('input');
   const text = input.value.trim();
   if((!text && !attachedImage) || isStreaming) return;
+
+  // If it looks like an image request and no photo is attached (attaching a
+  // photo means the user wants it analyzed, not a new one generated),
+  // route straight to real image generation instead of the text model.
+  if(text && !attachedImage && detectImageRequest(text)){
+    return generateImage();
+  }
 
   if(!activeId) newThread();
   const t = getActive();
@@ -658,8 +676,14 @@ function showAttachmentPreview(dataUrl){
 
 async function generateImage(){
   const input = document.getElementById('input');
-  const prompt = input.value.trim();
+  let prompt = input.value.trim();
   if(!prompt || isStreaming) return;
+
+  // Strip common request phrasing so the actual subject is what gets drawn.
+  prompt = prompt
+    .replace(/^(please\s+)?(can you\s+)?(generate|create|make|draw|paint)\s+(me\s+)?(an?\s+)?(image|picture|photo|illustration|artwork|drawing)\s*(of)?\s*/i, '')
+    .replace(/\b(image|picture|tasveer|tasvir)\s+(bana|banao|banado|bnado|bnao)\s+(do|den|dein)?\s*(of|ka|ki)?\s*/i, '')
+    .trim() || prompt;
 
   if(!activeId) newThread();
   const t = getActive();
@@ -677,20 +701,48 @@ async function generateImage(){
   isStreaming = true;
   renderConversation();
 
-  const seed = Math.floor(Math.random() * 100000);
-  const imageUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?width=768&height=768&seed=' + seed + '&nologo=true';
+  tryGenerateImage(prompt, t, 0);
+}
 
-  // Preload so the typing indicator stays up until the image is actually ready.
+function tryGenerateImage(prompt, t, attempt){
+  const seed = Math.floor(Math.random() * 100000);
+  const imageUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
+    '?width=768&height=768&seed=' + seed + '&nologo=true&model=flux';
+
+  let settled = false;
   const img = new Image();
+
+  const timeoutId = setTimeout(() => {
+    if(settled) return;
+    settled = true;
+    if(attempt < 1){
+      tryGenerateImage(prompt, t, attempt + 1);
+    } else {
+      isStreaming = false;
+      renderConversation();
+      showError('Image generation timed out. Please try again in a moment.');
+    }
+  }, 30000);
+
   img.onload = () => {
+    if(settled) return;
+    settled = true;
+    clearTimeout(timeoutId);
     isStreaming = false;
     t.messages.push({ role:'assistant', content: '![' + prompt.replace(/[\[\]]/g,'') + '](' + imageUrl + ')' });
     renderConversation();
   };
   img.onerror = () => {
-    isStreaming = false;
-    renderConversation();
-    showError('Could not generate that image. Please try again.');
+    if(settled) return;
+    settled = true;
+    clearTimeout(timeoutId);
+    if(attempt < 1){
+      tryGenerateImage(prompt, t, attempt + 1);
+    } else {
+      isStreaming = false;
+      renderConversation();
+      showError('Could not generate that image. Please try again.');
+    }
   };
   img.src = imageUrl;
 }
@@ -705,6 +757,27 @@ input.addEventListener('keydown', (e) => {
   if(e.key === 'Enter' && !e.shiftKey){
     e.preventDefault();
     handleSend();
+  }
+});
+input.addEventListener('paste', (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if(!items) return;
+  for(const item of items){
+    if(item.type && item.type.startsWith('image/')){
+      e.preventDefault();
+      const file = item.getAsFile();
+      if(!file) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        resizeImage(reader.result, 1024, 0.8).then((resized) => {
+          attachedImage = resized;
+          showAttachmentPreview(attachedImage);
+          updateSendState();
+        });
+      };
+      reader.readAsDataURL(file);
+      break;
+    }
   }
 });
 document.getElementById('sendBtn').addEventListener('click', handleSend);
@@ -745,12 +818,39 @@ document.getElementById('photoInput').addEventListener('change', (e) => {
   if(!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    attachedImage = reader.result;
-    showAttachmentPreview(attachedImage);
-    updateSendState();
+    resizeImage(reader.result, 1024, 0.8).then((resized) => {
+      attachedImage = resized;
+      showAttachmentPreview(attachedImage);
+      updateSendState();
+    });
   };
   reader.readAsDataURL(file);
 });
+
+function resizeImage(dataUrl, maxDim, quality){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > maxDim || height > maxDim){
+        if(width > height){
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
 
 // Generate image
 document.getElementById('menuGenerateImage').addEventListener('click', () => {
