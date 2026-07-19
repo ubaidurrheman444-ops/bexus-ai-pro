@@ -54,7 +54,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { messages } = req.body || {};
+    const { messages, image, webSearch } = req.body || {};
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' });
@@ -65,6 +65,35 @@ module.exports = async (req, res) => {
       content: String(m.content || '').slice(0, 6000)
     }));
 
+    // Pick the right model for the job:
+    // - an image was attached -> use a vision-capable model
+    // - web search toggle is on -> use Groq's compound system (built-in live web search)
+    // - otherwise -> the regular fast text model
+    let model = 'openai/gpt-oss-120b';
+    if (image) {
+      model = 'meta-llama/llama-4-scout-17b-16e-instruct';
+    } else if (webSearch) {
+      model = 'groq/compound';
+    }
+
+    // If an image was attached, the last user message needs the OpenAI-style
+    // multi-part content (text + image_url) instead of a plain string.
+    let finalMessages = trimmed;
+    if (image && finalMessages.length > 0) {
+      const lastIndex = finalMessages.length - 1;
+      const lastMsg = finalMessages[lastIndex];
+      finalMessages = [
+        ...finalMessages.slice(0, lastIndex),
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: lastMsg.content },
+            { type: 'image_url', image_url: { url: image } }
+          ]
+        }
+      ];
+    }
+
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -72,15 +101,19 @@ module.exports = async (req, res) => {
         Authorization: `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
-        max_tokens: 1000,
+        model,
+        max_tokens: 2000,
+        temperature: 0.7,
         messages: [
           {
             role: 'system',
             content:
-              'You are Bexus AI Pro, a helpful, direct AI assistant inside a polished chat product. Use markdown formatting (bold with **, code with backticks, bullet lists) where it aids clarity, but keep responses well organized and not overly long unless asked.'
+              "You are Bexus AI Pro, a highly capable AI assistant. Answer like a thoughtful, knowledgeable expert would: think through the question fully before answering, cover the important angles, and give complete, accurate, well-reasoned responses rather than short or superficial ones. " +
+              "Match your depth to the question — a simple greeting gets a short reply, but technical, factual, or open-ended questions deserve a genuinely thorough answer with real substance, examples, and clear reasoning, the way a leading AI assistant would respond. " +
+              "Structure longer answers clearly: use short paragraphs, **bold** for key terms, numbered or bulleted lists for steps or multiple items, and code blocks (with triple backticks) for any code. Never invent facts, sources, or numbers — if you are not sure of something, say so honestly instead of guessing confidently. " +
+              "Be direct and natural, not robotic or repetitive, and avoid unnecessary filler or restating the question back before answering."
           },
-          ...trimmed
+          ...finalMessages
         ]
       })
     });
