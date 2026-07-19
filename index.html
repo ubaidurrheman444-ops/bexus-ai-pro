@@ -707,7 +707,7 @@ async function generateImage(){
 function tryGenerateImage(prompt, t, attempt){
   const seed = Math.floor(Math.random() * 100000);
   const imageUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
-    '?width=768&height=768&seed=' + seed + '&nologo=true&model=flux';
+    '?width=768&height=768&seed=' + seed + '&nologo=true';
 
   let settled = false;
   const img = new Image();
@@ -715,14 +715,14 @@ function tryGenerateImage(prompt, t, attempt){
   const timeoutId = setTimeout(() => {
     if(settled) return;
     settled = true;
-    if(attempt < 1){
-      tryGenerateImage(prompt, t, attempt + 1);
+    if(attempt < 2){
+      setTimeout(() => tryGenerateImage(prompt, t, attempt + 1), 4000);
     } else {
       isStreaming = false;
       renderConversation();
       showError('Image generation timed out. Please try again in a moment.');
     }
-  }, 30000);
+  }, 45000);
 
   img.onload = () => {
     if(settled) return;
@@ -736,12 +736,12 @@ function tryGenerateImage(prompt, t, attempt){
     if(settled) return;
     settled = true;
     clearTimeout(timeoutId);
-    if(attempt < 1){
-      tryGenerateImage(prompt, t, attempt + 1);
+    if(attempt < 2){
+      setTimeout(() => tryGenerateImage(prompt, t, attempt + 1), 4000);
     } else {
       isStreaming = false;
       renderConversation();
-      showError('Could not generate that image. Please try again.');
+      showError('Could not generate that image right now (the free image service may be busy). Please try again in a few seconds.');
     }
   };
   img.src = imageUrl;
