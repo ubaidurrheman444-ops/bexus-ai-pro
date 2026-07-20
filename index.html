@@ -394,13 +394,38 @@
 let threads = [];
 let activeId = null;
 let isStreaming = false;
+let storageKey = null;
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function saveThreads(){
+  if(!storageKey) return;
+  try{
+    localStorage.setItem(storageKey, JSON.stringify({ threads, activeId }));
+  } catch(e){
+    console.error('Could not save chat history:', e);
+  }
+}
+
+function loadThreads(){
+  if(!storageKey) return;
+  try{
+    const raw = localStorage.getItem(storageKey);
+    if(raw){
+      const data = JSON.parse(raw);
+      threads = Array.isArray(data.threads) ? data.threads : [];
+      activeId = data.activeId || (threads[0] && threads[0].id) || null;
+    }
+  } catch(e){
+    console.error('Could not load chat history:', e);
+  }
+}
 
 function newThread(){
   const t = { id: uid(), title: 'New chat', messages: [] };
   threads.unshift(t);
   activeId = t.id;
+  saveThreads();
   renderThreadList();
   renderConversation();
 }
@@ -408,6 +433,7 @@ function newThread(){
 function getActive(){ return threads.find(t => t.id === activeId); }
 
 function renderThreadList(){
+  saveThreads();
   const list = document.getElementById('threadList');
   list.innerHTML = '';
   threads.forEach(t => {
@@ -476,6 +502,7 @@ function copyMessage(btn, text){
 }
 
 function renderConversation(){
+  saveThreads();
   const inner = document.getElementById('threadInner');
   const t = getActive();
   if(!t || t.messages.length === 0){
@@ -915,6 +942,11 @@ function showApp() {
 
   document.getElementById('authGate').classList.add('hidden');
   document.getElementById('mainApp').classList.remove('gated');
+
+  storageKey = 'bexus_threads_' + user.id;
+  loadThreads();
+  renderThreadList();
+  renderConversation();
 
   document.getElementById('sidebarFooter').addEventListener('click', async () => {
     if (confirm('Sign out of Bexus AI Pro?')) {
